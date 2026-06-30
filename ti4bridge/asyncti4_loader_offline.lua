@@ -9,7 +9,7 @@
   To revert to the embedded-snapshot fallback, paste the JSON into EMBEDDED_JSON.
 =========================================================================== ]]
 
-local API_BASE = 'https://silent-silence-79ed.dantexcameron.workers.dev/game/'
+local API_BASE = 'https://silent-silence-79ed.dantexcameron.workers.dev/api/public/game/'
 
 -- Leave empty to always fetch live data via the local proxy.
 -- Paste a JSON snapshot here to use offline without running the proxy.
@@ -203,59 +203,69 @@ end
 
 function onLoad(saveState)
     self.setLock(true)
-    local Y = 0.2  -- float above tile surface (same convention as Map Tool)
+    -- Calibrated to Map Tool reference (Custom_Tile scaleX=3.31):
+    -- Map Tool uses width=1250 for ~90% of a 6.62-unit tile → ~200px per world unit.
+    -- Our tile is 3.5 world units wide → full width ≈ 700px → use 580px (83%).
+    -- Z positions are in world units; tile extends ±1.75, buttons fill ±1.05.
+    -- Heights at 200px/unit: 0.65 world units each (140px), with ~0.075-unit gaps.
+    -- BlockSquare top face is at y=0.5 LOCAL * scaleY(0.1) = 0.05 world.
+    -- Map Tool (Custom_Tile, scaleY=1.0) uses y=0.2 → 0.2 world above its flat surface.
+    -- To clear our cube surface by the same margin: (0.05+0.2)/0.1 = 2.5 LOCAL.
+    local Y = 2.5
 
-    -- Game ID input (top of tile)
+    -- BlockSquare local extent: ±0.5 in all axes.
+    -- 4 elements filling 80% of tile Z (0.8 local):
+    --   each element = 0.16 local, gap = 0.04 local, center-spacing = 0.20 local
+    --   centers: -0.30, -0.10, +0.10, +0.30  (tile edge is ±0.50)
+    -- Width: 500px (empirically ~73% of local tile width, leaving visible margin)
+
     self.createInput({
         input_function = 'onGameNameChanged',
         function_owner = self,
-        label          = 'Game ID (e.g. pbd24975)',
+        label          = 'Game ID',
         value          = _gameName,
-        position       = {x=0, y=Y, z=-1.1},
-        width          = 1050,
-        height         = 200,
-        font_size      = 90,
+        position       = {x=0, y=Y, z=-0.30},
+        width          = 500,
+        height         = 100,
+        font_size      = 48,
         alignment      = 2,
         validation     = 1,
     })
 
-    -- Build Map (blue)
     self.createButton({
         click_function = 'onBuildMap',
         function_owner = self,
         label          = 'Build Map',
-        position       = {x=0, y=Y, z=-0.45},
-        width          = 1050,
-        height         = 270,
-        font_size      = 130,
-        color          = {0.07, 0.22, 0.42},
-        font_color     = {0.58, 0.77, 0.99},
+        position       = {x=0, y=Y, z=-0.10},
+        width          = 500,
+        height         = 110,
+        font_size      = 58,
+        color          = {0.12, 0.35, 0.65},
+        font_color     = {0.8, 0.92, 1.0},
     })
 
-    -- Clear Home Slots (red)
     self.createButton({
         click_function = 'onClearHomeSlots',
         function_owner = self,
         label          = 'Clear Home Slots',
-        position       = {x=0, y=Y, z=0.35},
-        width          = 1050,
-        height         = 260,
-        font_size      = 115,
-        color          = {0.33, 0.06, 0.04},
-        font_color     = {0.99, 0.64, 0.64},
+        position       = {x=0, y=Y, z=0.10},
+        width          = 500,
+        height         = 110,
+        font_size      = 52,
+        color          = {0.45, 0.08, 0.06},
+        font_color     = {1.0, 0.7, 0.7},
     })
 
-    -- Setup TF Game (green, most prominent)
     self.createButton({
         click_function = 'onSetupTFGame',
         function_owner = self,
         label          = 'Setup TF Game',
-        position       = {x=0, y=Y, z=1.15},
-        width          = 1050,
-        height         = 320,
-        font_size      = 150,
-        color          = {0.02, 0.30, 0.22},
-        font_color     = {0.43, 0.91, 0.72},
+        position       = {x=0, y=Y, z=0.30},
+        width          = 500,
+        height         = 120,
+        font_size      = 62,
+        color          = {0.04, 0.38, 0.28},
+        font_color     = {0.5, 1.0, 0.8},
     })
 end
 
