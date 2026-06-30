@@ -298,9 +298,36 @@ local function buildMap(data)
         return false
     end
 
-    broadcastToAll('[AsyncTI4] Map string ready:', {0.8, 0.8, 1})
-    broadcastToAll(mapStr, {1, 1, 1})
-    diagLog('map string stored: ' .. #mapStr .. ' chars')
+    diagLog('map string: ' .. #mapStr .. ' chars')
+
+    -- Probe for the Map Tool by calling getMapString() — only that object has it.
+    local mapTool
+    for _, obj in ipairs(getAllObjects()) do
+        local ok, v = pcall(function() return obj.call('getMapString', {}) end)
+        if ok and type(v) == 'string' then mapTool = obj; break end
+    end
+
+    if mapTool then
+        -- setMapString() requires a plain string arg, which obj.call() can't deliver
+        -- directly (params must be a table). Set the internal global and update the
+        -- visible input manually instead.
+        mapTool.setVar('_mapString', mapStr)
+        local MAP_INPUT_LABEL = "Enter map string or press 'save' to save the current map"
+        for _, inp in ipairs(mapTool.getInputs() or {}) do
+            if inp.label == MAP_INPUT_LABEL then
+                inp.value = mapStr
+                mapTool.editInput(inp)
+                break
+            end
+        end
+        Wait.frames(function() mapTool.call('onButtonBuild', {}) end, 5)
+        broadcastToAll('[AsyncTI4] Building map...', {0.6, 0.9, 1.0})
+    else
+        -- Map Tool not on table: print to scripting console (~) where it is copyable.
+        print('[AsyncTI4] Map string (paste into Map Tool):\n' .. mapStr)
+        broadcastToAll('[AsyncTI4] Map Tool not found — map string printed to console (~).', {1, 0.8, 0.4})
+    end
+
     return true
 end
 
