@@ -201,86 +201,62 @@ function fetchData(onResult)
     end
 end
 
-local _mapStringDisplay = ''
-
 function onLoad(saveState)
     self.setLock(true)
-    self.UI.setXml([[
-<Panel id="panel_main"
-       width="340" height="310"
-       position="0 0 0"
-       color="#0F172A"
-       outline="#334155" outlineSize="2"
-       padding="12 12 12 12">
+    local Y = 0.2  -- float above tile surface (same convention as Map Tool)
 
-  <!-- Header -->
-  <HorizontalLayout height="28" childAlignment="MiddleLeft" spacing="6">
-    <Text text="⬡" color="#38BDF8" fontSize="20" width="26"/>
-    <Text text="AsyncTI4 Loader" color="#F1F5F9" fontSize="15" fontStyle="Bold"/>
-  </HorizontalLayout>
+    -- Game ID input (top of tile)
+    self.createInput({
+        input_function = 'onGameNameChanged',
+        function_owner = self,
+        label          = 'Game ID (e.g. pbd24975)',
+        value          = _gameName,
+        position       = {x=0, y=Y, z=-1.1},
+        width          = 1050,
+        height         = 200,
+        font_size      = 90,
+        alignment      = 2,
+        validation     = 1,
+    })
 
-  <!-- Divider -->
-  <Panel height="1" color="#334155" margin="0 6 0 6"/>
+    -- Build Map (blue)
+    self.createButton({
+        click_function = 'onBuildMap',
+        function_owner = self,
+        label          = 'Build Map',
+        position       = {x=0, y=Y, z=-0.45},
+        width          = 1050,
+        height         = 270,
+        font_size      = 130,
+        color          = {0.07, 0.22, 0.42},
+        font_color     = {0.58, 0.77, 0.99},
+    })
 
-  <!-- Game name input -->
-  <HorizontalLayout height="32" spacing="6" margin="0 0 0 4">
-    <Text text="Game" color="#94A3B8" fontSize="12" width="40" alignment="MiddleLeft"/>
-    <InputField id="gameNameField"
-                text="]] .. _gameName .. [["
-                onValueChanged="onGameNameChanged"
-                color="#1E293B" textColor="#F1F5F9"
-                fontSize="13" height="32"/>
-  </HorizontalLayout>
+    -- Clear Home Slots (red)
+    self.createButton({
+        click_function = 'onClearHomeSlots',
+        function_owner = self,
+        label          = 'Clear Home Slots',
+        position       = {x=0, y=Y, z=0.35},
+        width          = 1050,
+        height         = 260,
+        font_size      = 115,
+        color          = {0.33, 0.06, 0.04},
+        font_color     = {0.99, 0.64, 0.64},
+    })
 
-  <!-- Map string display -->
-  <HorizontalLayout height="28" spacing="6" margin="0 0 0 6">
-    <Text text="Map" color="#94A3B8" fontSize="12" width="40" alignment="MiddleLeft"/>
-    <Text id="mapStringText"
-          text="(build map to populate)"
-          color="#64748B" fontSize="11" alignment="MiddleLeft"/>
-  </HorizontalLayout>
-
-  <!-- Buttons -->
-  <Button id="btnBuild"
-          text="⬡  Build Map"
-          onClick="onBuildMap"
-          color="#1E3A5F" textColor="#93C5FD"
-          fontSize="14" height="44"
-          outline="#3B82F6" outlineSize="1"
-          margin="0 0 0 4"/>
-
-  <Button id="btnClearHome"
-          text="✕  Clear Home Slots"
-          onClick="onClearHomeSlots"
-          color="#431407" textColor="#FCA5A5"
-          fontSize="14" height="40"
-          outline="#DC2626" outlineSize="1"
-          margin="0 0 0 4"/>
-
-  <Button id="btnSetup"
-          text="▶  Setup TF Game"
-          onClick="onSetupTFGame"
-          color="#064E3B" textColor="#6EE7B7"
-          fontSize="15" height="48"
-          outline="#10B981" outlineSize="1"
-          fontStyle="Bold"/>
-
-</Panel>
-]])
-end
-
--- Called by XML UI InputField
-function onGameNameChanged(player, value)
-    _gameName = (value or ''):gsub('^%s+', ''):gsub('%s+$', '')
-end
-
-local function updateMapStringDisplay(s)
-    _mapStringDisplay = s or ''
-    local display = _mapStringDisplay ~= '' and _mapStringDisplay or '(build map to populate)'
-    pcall(function()
-        self.UI.setAttribute('mapStringText', 'text', display)
-        self.UI.setAttribute('mapStringText', 'color', _mapStringDisplay ~= '' and '#CBD5E1' or '#64748B')
-    end)
+    -- Setup TF Game (green, most prominent)
+    self.createButton({
+        click_function = 'onSetupTFGame',
+        function_owner = self,
+        label          = 'Setup TF Game',
+        position       = {x=0, y=Y, z=1.15},
+        width          = 1050,
+        height         = 320,
+        font_size      = 150,
+        color          = {0.02, 0.30, 0.22},
+        font_color     = {0.43, 0.91, 0.72},
+    })
 end
 
 local function findObjByName(name)
@@ -313,8 +289,7 @@ local function buildMap(data)
         return false
     end
 
-    updateMapStringDisplay(mapStr)
-    broadcastToAll('[AsyncTI4] Map string ready — shown on loader panel and printed below:', {0.8, 0.8, 1})
+    broadcastToAll('[AsyncTI4] Map string ready:', {0.8, 0.8, 1})
     broadcastToAll(mapStr, {1, 1, 1})
     diagLog('map string stored: ' .. #mapStr .. ' chars')
     return true
@@ -1349,10 +1324,9 @@ function onSetupTFGame()
     end)
 end
 
--- Legacy callback kept for compatibility (XML UI uses the onLoad version above)
-function onGameNameChanged(a, b, c)
-    local value = c or b or a or ''
-    _gameName = value:gsub('^%s+', ''):gsub('%s+$', '')
+-- createInput callback: (obj, value, id)
+function onGameNameChanged(_, value, _id)
+    _gameName = (value or ''):gsub('^%s+', ''):gsub('%s+$', '')
 end
 
 function onPlaceUnits()
