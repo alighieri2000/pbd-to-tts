@@ -289,7 +289,8 @@ local function buildMap(data)
         if pos == '000' then
             parts[#parts + 1] = '{' .. tile .. '}'
         elseif pos and string.match(pos, '^%d%d%d$') then
-            parts[#parts + 1] = tile
+            -- tile 0 = home system placeholder; Map Tool expects {0} not bare 0
+            parts[#parts + 1] = (tile == '0') and '{0}' or tile
         end
     end
     local mapStr = table.concat(parts, ' ')
