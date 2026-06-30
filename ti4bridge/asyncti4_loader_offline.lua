@@ -1429,6 +1429,31 @@ function handleWebData(result, tfToTTS)
     local tileCount = 0; for _ in pairs(tileNumToObject) do tileCount = tileCount + 1 end
     diagLog('tileNumToObject: ' .. tileCount .. ' tiles found')
 
+    -- Build tile → planet-name → tile-local-space position from TI4_SYSTEM_HELPER.
+    -- Planet positions are computed by the system helper's arc-zone algorithm; a few
+    -- tiles (Creuss, Cormund, Everra) have explicit overrides. Using these lets us place
+    -- units near the actual planet graphic rather than at a hardcoded XZ offset.
+    local tileNumToPlanets = {}
+    if sysOk then
+        for _, sys in pairs(guidToSystem) do
+            if sys.tile and type(sys.planets) == 'table' then
+                local pmap = {}
+                for _, p in ipairs(sys.planets) do
+                    if p.name and p.position then
+                        pmap[normalizePlanetKey(p.name)] = {
+                            x = p.position.x or 0,
+                            y = p.position.y or 0,
+                            z = p.position.z or 0,
+                        }
+                    end
+                end
+                if next(pmap) then tileNumToPlanets[sys.tile] = pmap end
+            end
+        end
+    end
+    local ptcount = 0; for _ in pairs(tileNumToPlanets) do ptcount = ptcount + 1 end
+    diagLog('tileNumToPlanets: ' .. ptcount .. ' tiles with planet positions')
+
     local factionToColor = {}
     for _, p in ipairs(data.playerData or {}) do
         if p.faction then
@@ -1453,10 +1478,17 @@ function handleWebData(result, tfToTTS)
     local tally = { placed = 0, flagship = 0, neutral = 0, nobag = {}, notile = {}, nocolor = {} }
     local spawnIndex = {}
 
-    local function placeUnits(tileObj, faction, unitList, localOffset, groupKey)
+    -- worldBase: world-space {x,y,z} around which to cluster units.
+    -- For planets this is positionToWorld(planet.localPos); for space it is tile center.
+    -- Uses a Fermat spiral in XZ so units pack tightly without piling at one point.
+    -- smooth=false teleports units into position — avoids the spin/bounce caused by
+    -- TTS physics animation landing on top of each other.
+    local function placeUnits(tileObj, faction, unitList, worldBase, groupKey)
         local color = factionToColor[faction]
-        local lox = (localOffset and localOffset.x) or 0
-        local loz = (localOffset and localOffset.z) or 0
+        local tp = tileObj.getPosition()
+        local bx = (worldBase and worldBase.x) or tp.x
+        local by = (worldBase and worldBase.y) or tp.y
+        local bz = (worldBase and worldBase.z) or tp.z
         local ikey = groupKey or tileObj.getGUID()
         for _, e in ipairs(unitList) do
             local count = tonumber(e.count) or 1
@@ -1475,15 +1507,19 @@ function handleWebData(result, tfToTTS)
                     tally.nobag[bagName] = true
                 else
                     for _ = 1, count do
-                        local k = (spawnIndex[ikey] or 0)
+                        local k = spawnIndex[ikey] or 0
                         spawnIndex[ikey] = k + 1
-                        local phi = k * 0.55
-                        local r = 0.35 + (k * 0.12)
+                        -- Fermat spiral: golden-angle rotation, sqrt radius for even packing.
+                        -- r=0 at k=0 (first unit at planet center), ~0.9 at k=25.
+                        local angle = k * 2.399  -- golden angle in radians
+                        local r     = 0.18 * math.sqrt(k)
                         bag.takeObject({
-                            position = tileObj.positionToWorld({
-                                x = lox + math.cos(phi) * r, y = 1.5, z = loz + math.sin(phi) * r,
-                            }),
-                            smooth = true,
+                            position = {
+                                x = bx + math.cos(angle) * r,
+                                y = by + 0.6 + k * 0.04,
+                                z = bz + math.sin(angle) * r,
+                            },
+                            smooth = false,
                         })
                         tally.placed = tally.placed + 1
                     end
@@ -1507,27 +1543,18 @@ function handleWebData(result, tfToTTS)
                 end
             end
             if type(tdata.planets) == 'table' then
-                local planetKeys = {}
-                for k in pairs(tdata.planets) do planetKeys[#planetKeys+1] = k end
-                table.sort(planetKeys)
-                -- Per-planet local offsets so units cluster near each planet rather than piling at center.
-                -- Offsets are in tile local-space XZ; spread along X axis by planet index.
-                local n = #planetKeys
-                local POFF = {}
-                if n == 1 then
-                    POFF = { {x=0, z=0} }
-                elseif n == 2 then
-                    POFF = { {x=-0.65, z=0}, {x=0.65, z=0} }
-                else
-                    POFF = { {x=0, z=-0.65}, {x=-0.6, z=0.4}, {x=0.6, z=0.4} }
-                end
-                for pi, pk in ipairs(planetKeys) do
-                    local pdata = tdata.planets[pk]
+                local tileSystemPlanets = tileNumToPlanets[tileNum] or {}
+                for pk, pdata in pairs(tdata.planets) do
                     if type(pdata) == 'table' and type(pdata.entities) == 'table' then
-                        local poff = POFF[pi] or {x=0, z=0}
+                        -- Resolve actual planet world position from TI4_SYSTEM_HELPER data.
+                        -- Falls back to tile center if system helper didn't return positions.
+                        local localPlanetPos = tileSystemPlanets[normalizePlanetKey(pk)]
+                        local planetWorldBase = localPlanetPos
+                            and tileObj.positionToWorld(localPlanetPos)
+                            or  tileObj.getPosition()
                         for faction, unitList in pairs(pdata.entities) do
                             if type(unitList) == 'table' then
-                                placeUnits(tileObj, faction, unitList, poff, guid .. '_p' .. pi)
+                                placeUnits(tileObj, faction, unitList, planetWorldBase, guid .. '_p' .. pk)
                             end
                         end
                     end
@@ -1553,7 +1580,7 @@ function handleWebData(result, tfToTTS)
                     if ccBag2 then
                         local tp = tileObj2.getPosition()
                         pcall(function()
-                            ccBag2.takeObject({ position = {x=tp.x, y=tp.y+1.5, z=tp.z}, smooth=true })
+                            ccBag2.takeObject({ position = {x=tp.x, y=tp.y+0.6, z=tp.z}, smooth=false })
                         end)
                         ccPlaced = ccPlaced + 1
                     end
