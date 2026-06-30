@@ -1,0 +1,4 @@
+# Game data snapshots — contain player info, don't commit
+ti4bridge/pbd24975_webdata.json
+ti4bridge/live.json
+ti4bridge/HANDOFF.md
