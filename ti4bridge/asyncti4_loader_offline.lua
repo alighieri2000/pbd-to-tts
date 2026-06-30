@@ -202,7 +202,6 @@ function fetchData(onResult)
 end
 
 function onLoad(saveState)
-    self.setLock(true)
     -- Calibrated to Map Tool reference (Custom_Tile scaleX=3.31):
     -- Map Tool uses width=1250 for ~90% of a 6.62-unit tile → ~200px per world unit.
     -- Our tile is 3.5 world units wide → full width ≈ 700px → use 580px (83%).
